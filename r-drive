@@ -1,0 +1,79 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Long;
+use File::Path;
+use File::Basename;
+use File::Glob qw/:glob/;
+use File::Find::Rule;
+
+my $classes = '/data/groups/classes';
+my $year = (localtime())[5]; $year += 1900;
+$year++ if (localtime())[4] > 5;
+my @teacher = ();
+my @class = ();
+my @student = ();
+my $mkdir = 0;
+my $debug = 0;
+GetOptions(
+	'classes|c=s' => \$classes,
+	'year|y=s' => \$year,
+	'teacher|T=s' => \@teacher,
+	'class|C=s' => \@class,
+	'student|S=s' => \@student,
+	'mkdir|m' => \$mkdir,
+	'debug|d' => \$debug,
+);
+print STDERR "Class Root Dir: $classes\n";
+print STDERR "School year: $year\n";
+
+if ( $mkdir && ! -t STDIN ) {
+	while ( <STDIN> ) {
+		s/\r\n$//;
+		s/\s*$//;
+		s/,/\//g;
+		s/\047//g;
+		s/\/+$//;
+		chomp;
+		$_="$classes/$year/$_";
+		mkpath($_, 1) unless $debug || -e $_;
+	}
+	foreach ( File::Find::Rule->directory->mindepth(2)->maxdepth(2)->in("$classes/$year") ) {
+		mkpath(["$_/Class Work (r)", "$_/Class Work (rw)"], 1) unless $debug || -e "$_/Class Work (r)" || -e "$_/Class Work (rw)";
+	}
+}
+foreach my $teacherdir ( bsd_glob("$classes/$year/*") ) {
+	my $teacher = basename $teacherdir;
+	next unless -d $teacherdir && getpwnam($teacher);
+	next if @teacher && ! grep { $_ eq $teacher } @teacher;
+	print qq{setfacl -R -b '$teacherdir'\n};
+	print qq{chown -R $teacher.faculty '$teacherdir' ; chmod 755 '$teacherdir'\n};
+	print qq{setfacl -R -d -m u:$teacher:rwx,g:faculty:rwx '$teacherdir'\n};
+	foreach my $classdir ( bsd_glob("$teacherdir/*") ) {
+		next if $classdir =~ /'/;
+		my $class = basename $classdir;
+		next if @class && ! grep { $_ eq $class } @class;
+		print qq{echo '$teacher:$class'\n};
+		print qq{chmod -R 700 '$classdir'\n};
+		my @students = ();
+		foreach my $studentdir ( bsd_glob("$classdir/*") ) {
+			my $student = basename $studentdir;
+			next if @student && ! grep { $_ eq $student } @student;
+			next unless -d $studentdir && getpwnam($student);
+			print qq{setfacl -m u:$student:rx '$classdir'\n};
+			print qq{chown -R $student '$studentdir'\n};
+			print qq{setfacl -R -d -m u:$student:rwx '$studentdir'\n};
+			push @students, $student;
+		}
+		foreach my $studentdir ( bsd_glob("$classdir/*") ) {
+			my $student = basename $studentdir;
+			next if ! -d $studentdir || grep { $_ eq $student } @students;
+			foreach my $student ( @students ) {
+				next if @student && ! grep { $_ eq $student } @student;
+				my $perm = $studentdir =~ /\(rw\)$/ ? 'rwx' : 'rx';
+				print qq{setfacl -R -m d:u:$student:$perm,u:$student:$perm '$studentdir'\n};
+			}
+		}
+	}
+}
