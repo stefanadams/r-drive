@@ -27,7 +27,7 @@ GetOptions(
 );
 print STDERR "Class Root Dir: $classes\n";
 print STDERR "School year: $year\n";
-
+exit;
 if ( $mkdir && ! -t STDIN ) {
 	while ( <STDIN> ) {
 		s/\r\n$//;
