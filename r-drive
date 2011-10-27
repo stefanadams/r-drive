@@ -47,15 +47,15 @@ foreach my $teacherdir ( bsd_glob("$classes/$year/*") ) {
 	my $teacher = basename $teacherdir;
 	next unless -d $teacherdir && getpwnam($teacher);
 	next if @teacher && ! grep { $_ eq $teacher } @teacher;
-	print qq{setfacl -R -b '$teacherdir'\n};
-	print qq{chown -R $teacher.faculty '$teacherdir' ; chmod 755 '$teacherdir'\n};
-	print qq{setfacl -R -d -m u:$teacher:rwx,g:faculty:rwx '$teacherdir'\n};
+	print qq{setfacl -R -b '$teacherdir'\n} unless @class || @student;
+	print qq{chown -R $teacher.faculty '$teacherdir' ; chmod 755 '$teacherdir'\n} if @teacher || !@class || !@student;
+	print qq{setfacl -R -d -m u:$teacher:rwx,g:faculty:rwx '$teacherdir'\n} if @teacher || !@class || !@student;
 	foreach my $classdir ( bsd_glob("$teacherdir/*") ) {
 		next if $classdir =~ /'/;
 		my $class = basename $classdir;
 		next if @class && ! grep { $_ eq $class } @class;
 		print qq{echo '$teacher:$class'\n};
-		print qq{chmod -R 700 '$classdir'\n};
+		print qq{chmod -R 700 '$classdir'\n} if @teacher || @class || !@student;
 		my @students = ();
 		foreach my $studentdir ( bsd_glob("$classdir/*") ) {
 			my $student = basename $studentdir;
@@ -66,13 +66,14 @@ foreach my $teacherdir ( bsd_glob("$classes/$year/*") ) {
 			print qq{setfacl -R -d -m u:$student:rwx '$studentdir'\n};
 			push @students, $student;
 		}
-		foreach my $studentdir ( bsd_glob("$classdir/*") ) {
+		print qq{echo -e "\\t"}.(join ',', @students).qq{\n} if @students;
+		foreach my $studentdir ( bsd_glob("$classdir/*([rw]*)") ) {
 			my $student = basename $studentdir;
 			next if ! -d $studentdir || grep { $_ eq $student } @students;
-			foreach my $student ( @students ) {
-				next if @student && ! grep { $_ eq $student } @student;
+			foreach my $student1 ( @students ) {
+				next if @student && ! grep { $_ eq $student1 } @student;
 				my $perm = $studentdir =~ /\(rw\)$/ ? 'rwx' : 'rx';
-				print qq{setfacl -R -m d:u:$student:$perm,u:$student:$perm '$studentdir'\n};
+				print qq{setfacl -R -m d:u:$student1:$perm,u:$student1:$perm '$studentdir'\n};
 			}
 		}
 	}
