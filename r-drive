@@ -47,9 +47,9 @@ foreach my $teacherdir ( bsd_glob("$classes/$year/*") ) {
 	my $teacher = basename $teacherdir;
 	next unless -d $teacherdir && getpwnam($teacher);
 	next if @teacher && ! grep { $_ eq $teacher } @teacher;
-	print qq{setfacl -R -b '$teacherdir'\n} unless @class || @student;
-	print qq{chown -R $teacher.faculty '$teacherdir' ; chmod 755 '$teacherdir'\n} if @teacher || !@class || !@student;
-	print qq{setfacl -R -d -m u:$teacher:rwx,g:faculty:rwx '$teacherdir'\n} if @teacher || !@class || !@student;
+	print qq{setfacl -R -b '$teacherdir'\n} if @teacher || (!@class && !@student);
+	print qq{chown -R $teacher.faculty '$teacherdir' ; chmod 755 '$teacherdir'\n} if @teacher || (!@class && !@student);
+	print qq{setfacl -R -d -m u:$teacher:rwx,g:faculty:rwx '$teacherdir'\n} if @teacher || (!@class && !@student);
 	foreach my $classdir ( bsd_glob("$teacherdir/*") ) {
 		next if $classdir =~ /'/;
 		my $class = basename $classdir;
@@ -66,7 +66,7 @@ foreach my $teacherdir ( bsd_glob("$classes/$year/*") ) {
 			print qq{setfacl -R -d -m u:$student:rwx '$studentdir'\n};
 			push @students, $student;
 		}
-		print qq{echo -e "\\t"}.(join ',', @students).qq{\n} if @students;
+		print qq{echo -e "\\t"}.substr((join ',', @students), 0, 72).qq{\n} if @students;
 		foreach my $studentdir ( bsd_glob("$classdir/*([rw]*)") ) {
 			my $student = basename $studentdir;
 			next if ! -d $studentdir || grep { $_ eq $student } @students;
